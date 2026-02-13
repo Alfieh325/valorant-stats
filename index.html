@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Valorant Stats Tracker</title>
+  <style>
+    body { font-family: Arial, sans-serif; background: #0f1923; color: #ece8e1; text-align: center; padding: 20px; }
+    .container { max-width: 600px; margin: auto; background: rgba(31, 35, 38, 0.8); padding: 20px; border-radius: 10px; box-shadow: 0 0 20px rgba(255,70,85,0.3); }
+    input, select, button { width: 100%; padding: 10px; margin: 10px 0; border-radius: 5px; border: 1px solid #444; }
+    input, select { background: #1a1f24; color: white; }
+    button { background: #ff4655; color: white; border: none; cursor: pointer; }
+    button:hover { background: #e03e4d; }
+    #results { margin-top: 20px; text-align: left; }
+    table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+    th, td { padding: 8px; border-bottom: 1px solid #444; }
+    th { background: rgba(255,70,85,0.2); color: #ff4655; }
+    .error { color: #ffcccc; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Valorant Stats Tracker</h1>
+    <p>Enter Riot ID and region to see stats.</p>
+    
+    <input type="text" id="riotId" placeholder="Username#Tag (e.g. Player#NA1)" required>
+    <select id="region">
+      <option value="na">North America</option>
+      <option value="eu">Europe</option>
+      <option value="ap">Asia Pacific</option>
+      <option value="kr">Korea</option>
+    </select>
+    <button onclick="getPlayerStats()">Get Stats</button>
+    
+    <div id="error" class="error"></div>
+    <div id="results"></div>
+  </div>
+
+  <script>
+    async function getPlayerStats() {
+      const errorDiv = document.getElementById('error');
+      const resultsDiv = document.getElementById('results');
+      errorDiv.innerHTML = '';
+      resultsDiv.innerHTML = '<p>Loading...</p>';
+
+      const riotId = document.getElementById('riotId').value.trim();
+      const region = document.getElementById('region').value;
+
+      if (!riotId.includes('#')) {
+        errorDiv.innerHTML = 'Please enter Username#Tag';
+        resultsDiv.innerHTML = '';
+        return;
+      }
+
+      const [name, tag] = riotId.split('#');
+
+      // Replace with your free HenrikDev API key (from Discord)
+      const apiKey = 'HDEV-d27bf45c-cb88-44ea-8e1c-620884f46705';
+
+      try {
+        // Get player profile
+        const profileResponse = await fetch(`https://api.henrikdev.xyz/valorant/v1/account/${name}/${tag}?force=true`, {
+          headers: { 'Authorization': apiKey }
+        });
+        if (!profileResponse.ok) throw new Error('Player not found');
+        const profile = await profileResponse.json();
+
+        // Get MMR/rank
+        const mmrResponse = await fetch(`https://api.henrikdev.xyz/valorant/v3/mmr/${region}/${name}/${tag}`, {
+          headers: { 'Authorization': apiKey }
+        });
+        const mmr = await mmrResponse.json();
+
+        // Get recent matches
+        const matchesResponse = await fetch(`https://api.henrikdev.xyz/valorant/v3/matches/${region}/${name}/${tag}?size=5`, {
+          headers: { 'Authorization': apiKey }
+        });
+        const matches = await matchesResponse.json();
+
+        let html = `<h2>${profile.data.name}#${profile.data.tag}</h2>
+                    <p>Level: ${profile.data.account_level}</p>
+                    <p>Rank: ${mmr.data.currenttierpatched || 'Unranked'} (RR: ${mmr.data.ranking_in_tier || 0})</p>
+                    <h3>Recent Matches</h3>`;
+
+        if (matches.data && matches.data.length > 0) {
+          html += '<table><tr><th>Map</th><th>KDA</th><th>Result</th></tr>';
+          matches.data.forEach(match => {
+            const stats = match.players.all_players.find(p => p.name === name && p.tag === tag);
+            if (stats) {
+              const kda = `${stats.kills}/${stats.deaths}/${stats.assists}`;
+              const result = stats.has_won ? 'Win' : 'Loss';
+              html += `<tr><td>${match.metadata.map}</td><td>${kda}</td><td>${result}</td></tr>`;
+            }
+          });
+          html += '</table>';
+        } else {
+          html += '<p>No recent matches found.</p>';
+        }
+
+        resultsDiv.innerHTML = html;
+      } catch (error) {
+        errorDiv.innerHTML = error.message;
+        resultsDiv.innerHTML = '';
+      }
+    }
+  </script>
+</body>
+</html>
