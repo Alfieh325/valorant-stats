@@ -5,102 +5,174 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Valorant Stats Tracker</title>
   <style>
-    body { font-family: Arial, sans-serif; background: #0f1923; color: #ece8e1; text-align: center; padding: 20px; }
-    .container { max-width: 600px; margin: auto; background: rgba(31, 35, 38, 0.8); padding: 20px; border-radius: 10px; box-shadow: 0 0 20px rgba(255,70,85,0.3); }
-    input, select, button { width: 100%; padding: 10px; margin: 10px 0; border-radius: 5px; border: 1px solid #444; }
+    body { 
+      font-family: Arial, sans-serif; 
+      background: #0f1923; 
+      color: #ece8e1; 
+      text-align: center; 
+      padding: 20px; 
+      margin: 0;
+    }
+    .container { 
+      max-width: 700px; 
+      margin: auto; 
+      background: rgba(31, 35, 38, 0.85); 
+      padding: 25px; 
+      border-radius: 12px; 
+      box-shadow: 0 0 25px rgba(255,70,85,0.4);
+    }
+    h1 { color: #ff4655; margin-bottom: 10px; }
+    input, select, button { 
+      width: 100%; 
+      padding: 12px; 
+      margin: 12px 0; 
+      border-radius: 6px; 
+      border: 1px solid #555; 
+      font-size: 16px;
+    }
     input, select { background: #1a1f24; color: white; }
-    button { background: #ff4655; color: white; border: none; cursor: pointer; }
+    button { 
+      background: #ff4655; 
+      color: white; 
+      border: none; 
+      font-weight: bold; 
+      cursor: pointer; 
+      transition: 0.2s;
+    }
     button:hover { background: #e03e4d; }
-    #results { margin-top: 20px; text-align: left; }
-    table { width: 100%; border-collapse: collapse; margin-top: 10px; }
-    th, td { padding: 8px; border-bottom: 1px solid #444; }
+    #error { color: #ffaaaa; font-weight: bold; min-height: 20px; margin: 10px 0; }
+    #results { margin-top: 25px; text-align: left; }
+    #rank-info { background: rgba(255,70,85,0.15); padding: 15px; border-radius: 8px; margin-bottom: 20px; }
+    table { width: 100%; border-collapse: collapse; margin-top: 15px; }
+    th, td { padding: 10px; border-bottom: 1px solid #444; text-align: left; }
     th { background: rgba(255,70,85,0.2); color: #ff4655; }
-    .error { color: #ffcccc; }
+    .loading { color: #aaa; font-style: italic; }
   </style>
 </head>
 <body>
+
   <div class="container">
     <h1>Valorant Stats Tracker</h1>
-    <p>Enter Riot ID and region to see stats.</p>
+    <p>Enter your Riot ID and region to view rank & recent matches</p>
+
+    <input type="text" id="riotId" placeholder="Username#Tag (e.g. TenZ#0513)" required>
     
-    <input type="text" id="riotId" placeholder="Username#Tag (e.g. Player#NA1)" required>
     <select id="region">
-      <option value="na">North America</option>
-      <option value="eu">Europe</option>
-      <option value="ap">Asia Pacific</option>
-      <option value="kr">Korea</option>
+      <option value="na">North America (na)</option>
+      <option value="eu">Europe (eu)</option>
+      <option value="ap">Asia Pacific (ap)</option>
+      <option value="kr">Korea (kr)</option>
     </select>
-    <button onclick="getPlayerStats()">Get Stats</button>
-    
+
+    <button onclick="getStats()">Get Stats</button>
+
     <div id="error" class="error"></div>
-    <div id="results"></div>
+    <div id="results">
+      <div id="loading" class="loading" style="display:none;">Loading stats...</div>
+    </div>
   </div>
 
   <script>
-    async function getPlayerStats() {
+    async function getStats() {
       const errorDiv = document.getElementById('error');
       const resultsDiv = document.getElementById('results');
-      errorDiv.innerHTML = '';
-      resultsDiv.innerHTML = '<p>Loading...</p>';
+      const loadingDiv = document.getElementById('loading');
+
+      errorDiv.textContent = '';
+      resultsDiv.innerHTML = '';
+      loadingDiv.style.display = 'block';
 
       const riotId = document.getElementById('riotId').value.trim();
       const region = document.getElementById('region').value;
 
-      if (!riotId.includes('#')) {
-        errorDiv.innerHTML = 'Please enter Username#Tag';
-        resultsDiv.innerHTML = '';
+      if (!riotId || !riotId.includes('#')) {
+        errorDiv.textContent = 'Please enter a valid Riot ID (Username#Tag)';
+        loadingDiv.style.display = 'none';
         return;
       }
 
       const [name, tag] = riotId.split('#');
 
-      // Replace with your free HenrikDev API key (from Discord)
-      const apiKey = 'HDEV-d27bf45c-cb88-44ea-8e1c-620884f46705';
+      // ────────────────────────────────────────────────
+      // PASTE YOUR HENRIKDEV BASIC KEY HERE
+      const apiKey = 'HDEV-XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX';  // ← REPLACE THIS
+      // ────────────────────────────────────────────────
 
       try {
-        // Get player profile
-        const profileResponse = await fetch(`https://api.henrikdev.xyz/valorant/v1/account/${name}/${tag}?force=true`, {
-          headers: { 'Authorization': apiKey }
-        });
-        if (!profileResponse.ok) throw new Error('Player not found');
-        const profile = await profileResponse.json();
+        // 1. Get MMR / Rank (this has currenttierpatched)
+        const mmrRes = await fetch(
+          `https://api.henrikdev.xyz/valorant/v3/mmr/${region}/${encodeURIComponent(name)}/${encodeURIComponent(tag)}`,
+          { headers: { 'Authorization': apiKey } }
+        );
 
-        // Get MMR/rank
-        const mmrResponse = await fetch(`https://api.henrikdev.xyz/valorant/v3/mmr/${region}/${name}/${tag}`, {
-          headers: { 'Authorization': apiKey }
-        });
-        const mmr = await mmrResponse.json();
-
-        // Get recent matches
-        const matchesResponse = await fetch(`https://api.henrikdev.xyz/valorant/v3/matches/${region}/${name}/${tag}?size=5`, {
-          headers: { 'Authorization': apiKey }
-        });
-        const matches = await matchesResponse.json();
-
-        let html = `<h2>${profile.data.name}#${profile.data.tag}</h2>
-                    <p>Level: ${profile.data.account_level}</p>
-                    <p>Rank: ${mmr.data.currenttierpatched || 'Unranked'} (RR: ${mmr.data.ranking_in_tier || 0})</p>
-                    <h3>Recent Matches</h3>`;
-
-        if (matches.data && matches.data.length > 0) {
-          html += '<table><tr><th>Map</th><th>KDA</th><th>Result</th></tr>';
-          matches.data.forEach(match => {
-            const stats = match.players.all_players.find(p => p.name === name && p.tag === tag);
-            if (stats) {
-              const kda = `${stats.kills}/${stats.deaths}/${stats.assists}`;
-              const result = stats.has_won ? 'Win' : 'Loss';
-              html += `<tr><td>${match.metadata.map}</td><td>${kda}</td><td>${result}</td></tr>`;
-            }
-          });
-          html += '</table>';
-        } else {
-          html += '<p>No recent matches found.</p>';
+        if (!mmrRes.ok) {
+          const err = await mmrRes.json();
+          throw new Error(err?.data?.message || 'Failed to load rank (check Riot ID / region / key)');
         }
 
-        resultsDiv.innerHTML = html;
-      } catch (error) {
-        errorDiv.innerHTML = error.message;
-        resultsDiv.innerHTML = '';
+        const mmrData = (await mmrRes.json()).data;
+
+        // 2. Get recent matches
+        const matchesRes = await fetch(
+          `https://api.henrikdev.xyz/valorant/v4/matches/${region}/${encodeURIComponent(name)}/${encodeURIComponent(tag)}?size=5`,
+          { headers: { 'Authorization': apiKey } }
+        );
+
+        let matchesHtml = '<h3>Recent Matches</h3>';
+        let matchesTable = '<table><tr><th>Mode</th><th>Map</th><th>K/D/A</th><th>Result</th><th>RR Δ</th></tr>';
+
+        if (matchesRes.ok) {
+          const matches = (await matchesRes.json()).data || [];
+
+          if (matches.length === 0) {
+            matchesHtml += '<p>No recent matches found.</p>';
+          } else {
+            for (const match of matches) {
+              const player = match.players?.all_players?.find(p => 
+                p.name.toLowerCase() === name.toLowerCase() && p.tag.toLowerCase() === tag.toLowerCase()
+              );
+
+              if (!player) continue;
+
+              const kda = `${player.stats.kills}/${player.stats.deaths}/${player.stats.assists}`;
+              const won = player.stats.won ? 'Win' : 'Loss';
+              const rrChange = match.rr_change ? (match.rr_change > 0 ? '+' : '') + match.rr_change : '—';
+
+              matchesTable += `
+                <tr>
+                  <td>${match.meta?.mode || 'Custom'}</td>
+                  <td>${match.meta?.map?.name || '?'}</td>
+                  <td>${kda}</td>
+                  <td style="color:${player.stats.won ? '#4caf50' : '#f44336'}">${won}</td>
+                  <td>${rrChange}</td>
+                </tr>`;
+            }
+            matchesTable += '</table>';
+            matchesHtml += matchesTable;
+          }
+        } else {
+          matchesHtml += '<p>Could not load recent matches.</p>';
+        }
+
+        // Build final output
+        const rankName = mmrData?.currenttierpatched || 'Unranked';
+        const rr = mmrData?.ranking_in_tier ?? '?';
+        const peak = mmrData?.peak_rank_patched || '?';
+
+        resultsDiv.innerHTML = `
+          <div id="rank-info">
+            <h2>${name}#${tag}</h2>
+            <p><strong>Current Rank:</strong> ${rankName} (${rr} RR)</p>
+            <p><strong>Peak Rank:</strong> ${peak}</p>
+          </div>
+          ${matchesHtml}
+        `;
+      } catch (err) {
+        errorDiv.textContent = err.message.includes('429') 
+          ? 'Rate limit — wait 1–2 minutes and try again'
+          : `Error: ${err.message}`;
+      } finally {
+        loadingDiv.style.display = 'none';
       }
     }
   </script>
